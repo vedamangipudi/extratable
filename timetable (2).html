@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Modern Timetable Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:#f0f4f8;display:flex;justify-content:center;padding:20px;}
+    .wrap{width:100%;max-width:1200px;}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+    h1{margin:0;font-size:22px;color:#111;}
+    .small{font-size:13px;color:#555;}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:6px;}
+    select, button{padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#fff;transition:all 0.25s;}
+    select:hover, button:hover{border-color:#4f46e5;box-shadow:0 0 8px rgba(79,70,229,0.2);}
+    button{cursor:pointer;background:#4f46e5;color:#fff;font-weight:600;border:none;}
+    button:hover{background:#4338ca;}
+    .links a{color:#4f46e5;text-decoration:none;font-weight:600;margin-left:12px;transition:all 0.25s;}
+    .links a:hover{color:#4338ca;text-decoration:underline;}
+
+    /* Timetable Layout */
+    .timetable-container{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:20px;}
+    .day-column{flex:1;min-width:140px;background:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+    .day-label{text-align:center;font-weight:700;margin-bottom:12px;font-size:14px;}
+    .period-card{padding:10px;margin-bottom:10px;border-radius:10px;color:#fff;font-weight:600;
+      box-shadow:0 2px 6px rgba(0,0,0,0.1); transition:all 0.25s;}
+    .period-card:hover{transform:translateY(-4px); box-shadow:0 6px 16px rgba(0,0,0,0.2);}
+    .subject{font-size:14px;}
+    .teacher{font-size:12px;opacity:0.8;}
+
+    /* Legend */
+    .legend-container{margin-top:16px;background:#fff;padding:12px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+    .legend-title{font-weight:700;margin-bottom:8px;}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;}
+    .swatch{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;transition:all 0.25s;}
+    .dot{width:18px;height:18px;border-radius:6px;transition:all 0.25s;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Modern Timetable Viewer</h1>
+      <div class="small">Use dropdown to switch between Student/Class & Teacher view</div>
+      <div class="controls">
+        <label>View as:
+          <select id="view_type" onchange="onViewChange()">
+            <option value="student">Student (Class)</option>
+            <option value="teacher">Teacher</option>
+          </select>
+        </label>
+        <label id="student_select">
+          Class:
+          <select id="class_select" onchange="showTimetable()">
+            <option value="">--select class--</option>
+            {% for c in classes %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label id="teacher_select" style="display:none">
+          Teacher:
+          <select id="teacher_select_input" onchange="showTimetable()">
+            <option value="">--select teacher--</option>
+            {% for t in teachers %}
+              <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button onclick="showAll()">Show All</button>
+      </div>
+    </div>
+    <div class="links">
+      <a href="/">← Upload new CSVs</a>
+      <a href="/download/csv">Download CSV</a>
+      <a href="/download/pdf">Download PDF</a>
+    </div>
+  </header>
+
+  <div id="tables_area" class="timetable-container">
+    {% for cls, daymap in timetable.items() %}
+      <div class="class-wrapper" id="class_{{ cls }}" style="display:none;">
+        {% for day in days %}
+          <div class="day-column">
+            <div class="day-label">{{ day }}</div>
+            {% for p in range(periods|length) %}
+              {% set cell = daymap[day][p] %}
+              {% if cell %}
+              <div class="period-card">
+                <div class="subject">{{ cell[0] }}</div>
+                <div class="teacher">{{ cell[1] }}</div>
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% for teacher, daymap in teacher_schedule.items() %}
+      <div class="teacher-wrapper" id="teacher_{{ teacher }}" style="display:none;">
+        {% for day in days %}
+          <div class="day-column">
+            <div class="day-label">{{ day }}</div>
+            {% for p in range(periods|length) %}
+              {% set cell = daymap[day][p] %}
+              {% if cell %}
+              <div class="period-card">
+                <div class="subject">{{ cell[1] }}</div>
+                <div class="teacher">{{ cell[0] }}</div>
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Legend -->
+  <div class="legend-container">
+    <div class="legend-title">Legend</div>
+    <div id="legend" class="legend"></div>
+  </div>
+
+</div>
+
+<script>
+function hashToArtColor(str){
+    let hash=0; for(let i=0;i<str.length;i++){ hash = str.charCodeAt(i) + ((hash << 5) - hash);}
+    let h = Math.abs(hash) % 360;
+    let s = 65 + (Math.abs(hash) % 20);
+    let l = 45 + (Math.abs(hash) % 15);
+    return `hsl(${h} ${s}% ${l}%)`;
+}
+
+function buildLegendAndColor(){
+  const type=document.getElementById('view_type').value;
+  const legendEl=document.getElementById('legend'); legendEl.innerHTML='';
+  let items=new Set();
+  if(type==='student'){
+    document.querySelectorAll('.class-wrapper').forEach(wrapper=>{
+      wrapper.querySelectorAll('.period-card').forEach(card=>{
+        let s=card.querySelector('.subject').textContent;
+        items.add(s);
+        card.style.background=hashToArtColor(s); card.style.color='#fff';
+      });
+    });
+  } else {
+    document.querySelectorAll('.teacher-wrapper').forEach(wrapper=>{
+      wrapper.querySelectorAll('.period-card').forEach(card=>{
+        let c=card.querySelector('.teacher').textContent;
+        items.add(c);
+        card.style.background=hashToArtColor(c); card.style.color='#fff';
+      });
+    });
+  }
+  items.forEach(i=>{
+    const sw=document.createElement('div'); sw.className='swatch';
+    const dot=document.createElement('div'); dot.className='dot'; dot.style.background=hashToArtColor(i);
+    const label=document.createElement('div'); label.textContent=i;
+    sw.appendChild(dot); sw.appendChild(label); legendEl.appendChild(sw);
+  });
+}
+
+function onViewChange(){
+  const type=document.getElementById('view_type').value;
+  document.getElementById('student_select').style.display=type==='student'?'inline-block':'none';
+  document.getElementById('teacher_select').style.display=type==='teacher'?'inline-block':'none';
+  showAll();
+}
+
+function showAll(){
+  document.querySelectorAll('.class-wrapper, .teacher-wrapper').forEach(w=>w.style.display='none');
+  buildLegendAndColor();
+}
+
+function showTimetable(){
+  const type=document.getElementById('view_type').value;
+  if(type==='student'){
+    const cls=document.getElementById('class_select').value;
+    document.querySelectorAll('.class-wrapper').forEach(w=>w.style.display='none');
+    if(cls)document.getElementById('class_'+cls).style.display='flex';
+  } else {
+    const t=document.getElementById('teacher_select_input').value;
+    document.querySelectorAll('.teacher-wrapper').forEach(w=>w.style.display='none');
+    if(t)document.getElementById('teacher_'+t).style.display='flex';
+  }
+  buildLegendAndColor();
+}
+
+window.onload=showAll;
+</script>
+</body>
+</html>
