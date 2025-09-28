@@ -394,7 +394,7 @@ def index():
 def timetable_view():
     classes = sorted(list(STORE['class_requirements'].keys()))
     teachers = sorted(list(STORE['teachers'].keys()))
-    return render_template('timetable (2).html',
+    return render_template('timetable.html',
                            days=DAYS, periods=list(range(1, PERIODS+1)),
                            classes=classes, teachers=teachers,
                            timetable=STORE['timetable'],
@@ -488,4 +488,5 @@ def download_pdf():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
 
